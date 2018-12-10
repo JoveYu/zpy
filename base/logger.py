@@ -9,8 +9,8 @@ LEVEL_COLOR = {
     DEBUG: '\33[37m',
     INFO: '\33[36m',
     WARN: '\33[33m',
-    ERROR: '\33[35m',
-    FATAL: '\33[31m',
+    ERROR: '\33[31m',
+    FATAL: '\33[35m',
     NOTSET: ''
 }
 
