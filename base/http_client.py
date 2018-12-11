@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @yushijun
 
-
+import json
 import os
 import email
 import logging
@@ -12,7 +11,6 @@ import urllib.request
 import http
 import time
 import io
-
 
 log = logging.getLogger()
 
@@ -34,7 +32,7 @@ def timeit(func):
                 if self._charset:
                     self.content = self.content.decode(self._charset)
                     retval = retval.decode(self._charset)
-                content = self.content[:4000]
+                content = self.content[:2000]
             return retval
         except Exception as e:
             err = str(e)
@@ -82,7 +80,7 @@ def dict2xml(root, sep='', cdata=True):
 class HTTPClient:
     code = 0
     content = ''
-    headers = {}
+    header = {}
 
     def __init__(self, verify_ssl_certs=True, timeout=10, conn_pool=False, allow_redirect=False, charset='utf-8'):
         self._verify_ssl_certs = verify_ssl_certs
@@ -92,96 +90,60 @@ class HTTPClient:
         self._charset = charset
 
     @timeit
-    def get(self, url, params={}, **kwargs):
+    def do(self, method, url, header={}, post_data=None):
+        content, code, header = self.request(self, method, url, header, post_data)
+        return content
+
+    @timeit
+    def get(self, url, params={}, header={}, **kwargs):
         if params:
             if '?' in url:
                 url = url + '&' + urllib.parse.urlencode(params)
             else:
                 url = url + '?' + urllib.parse.urlencode(params)
 
-        header = {}
-        if 'headers' in kwargs:
-            header.update(kwargs.pop('headers'))
-
-        content, code, headers = self.request('get', url, header, **kwargs)
+        content, code, header = self.request('get', url, header, **kwargs)
 
         return content
 
     @timeit
-    def put(self, url, params={}, **kwargs):
-        header = {
-            'Content-Type':'application/x-www-form-urlencoded'
-        }
-        if 'headers' in kwargs:
-            header.update(kwargs.pop('headers'))
+    def post(self, url, params={}, header={}, **kwargs):
 
-        put_data = urllib.parse.urlencode(params)
-        content, code, headers = self.request('put', url, header, put_data, **kwargs)
-
-        return content
-
-    @timeit
-    def post(self, url, params={}, **kwargs):
-        header = {
-            'Content-Type':'application/x-www-form-urlencoded'
-        }
-        if 'headers' in kwargs:
-            header.update(kwargs.pop('headers'))
-
+        header['Content-Type'] = 'application/x-www-form-urlencoded'
         post_data = urllib.parse.urlencode(params)
-        content, code, headers = self.request('post', url, header, post_data, **kwargs)
 
+        content, code, header = self.request('post', url, header, post_data, **kwargs)
         return content
 
     @timeit
-    def post_json(self, url, json_dict={}, escape = True, **kwargs):
-        import json
+    def post_json(self, url, json_dict={}, header={}, json_options={}, **kwargs):
 
-        header = {
-            'Content-Type':'application/json'
-        }
-        if 'headers' in kwargs:
-            header.update(kwargs.pop('headers'))
+        header['Content-Type'] = 'application/json'
 
         if isinstance(json_dict, dict):
-            post_data = json.dumps(json_dict, ensure_ascii = escape)
+            post_data = json.dumps(json_dict, **json_options)
         else:
             post_data = json_dict
 
         log.debug('post_data=%s', post_data)
 
-        content, code, headers = self.request('post', url, header, post_data, **kwargs)
+        content, code, header = self.request('post', url, header, post_data, **kwargs)
 
         return content
 
     @timeit
-    def post_xml(self, url, xml={}, **kwargs):
+    def post_xml(self, url, xml_dict={}, header={}, **kwargs):
 
-        header = {
-            'Content-Type':'application/xml',
-        }
-        if 'headers' in kwargs:
-            header.update(kwargs.pop('headers'))
+        header['Content-Type'] = 'application/xml'
 
-        if isinstance(xml, dict):
-            xml = dict2xml(xml)
+        if isinstance(xml_dict, dict):
+            post_data = dict2xml(xml_dict)
+        else:
+            post_data = xml_dict
 
-        log.debug('post_data=%s', xml)
+        log.debug('post_data=%s', post_data)
 
-        content, code, headers = self.request('post', url, header, xml, **kwargs)
-
-        return content
-
-    @timeit
-    def delete(self, url, params={}, **kwargs):
-        header = {
-            'Content-Type':'application/x-www-form-urlencoded'
-        }
-        if 'headers' in kwargs:
-            header.update(kwargs.pop('headers'))
-
-        post_data = urllib.parse.urlencode(params)
-        content, code, headers = self.request('delete', url, header, post_data, **kwargs)
+        content, code, header = self.request('post', url, header, post_data, **kwargs)
 
         return content
 
@@ -189,64 +151,57 @@ class HTTPClient:
     def post_file(self, url, data={}, files={}):
         raise NotImplementedError()
 
-    def request(self, method, url, headers, post_data=None):
-        raise NotImplementedError(
-            'HTTPClient subclasses must implement `request`')
+    def request(self, method, url, header, post_data=None):
+        raise NotImplementedError()
 
 class Urllib3Client(HTTPClient):
     name = 'urllib3'
 
-    def request(self, method, url, headers, post_data=None,  **kwargs):
+    def request(self, method, url, header, post_data=None,  **kwargs):
         import urllib3
-        from urllib3.util.retry import Retry
+        import certifi
         urllib3.disable_warnings()
-
-        retries = Retry(total=False, connect=None, read=None, redirect=None)
 
         pool_kwargs = {}
         if self._verify_ssl_certs:
             pool_kwargs['cert_reqs'] = 'CERT_REQUIRED'
-            pool_kwargs['ca_certs'] = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data/ca-certificates.crt')
-
-        if self._allow_redirect:
-            kwargs['redirect'] = True
-        else:
-            kwargs['redirect'] = False
+            pool_kwargs['ca_certs'] = certifi.where()
 
         # 如果是长连接模式
         if self._conn_pool:
             global conn_pool
             if not conn_pool:
-                conn_pool = urllib3.PoolManager(num_pools=max(100, self._conn_pool), maxsize=max(100, self._conn_pool), **pool_kwargs)
+                conn_pool = urllib3.PoolManager(num_pools=max(100, self._conn_pool),
+                                                maxsize=max(100, self._conn_pool),
+                                                **pool_kwargs)
             conn = conn_pool
         else:
             conn = urllib3.PoolManager(**pool_kwargs)
 
-        result = conn.request(method=method, url=url, body=post_data, headers=headers, timeout=self._timeout, retries=retries, **kwargs)
+        result = conn.request(method=method, url=url,
+                              body=post_data, headers=header,
+                              timeout=self._timeout,
+                              redirect=self._allow_redirect,
+                              **kwargs)
 
-        self.content, self.code, self.headers = result.data, result.status, result.headers
+        self.content, self.code, self.header = result.data, result.status, result.headers
 
-        return self.content, self.code, self.headers
+        return self.content, self.code, self.header
 
 class RequestsClient(HTTPClient):
     name = 'requests'
 
     @timeit
-    def post_file(self, url, data={}, files={}, **kwargs):
+    def post_file(self, url, data={}, files={}, header={}, **kwargs):
         '''
         requests发文件方便一些  就不实现协议报文了
         '''
-        header = {
-        }
-        if 'headers' in kwargs:
-            header.update(kwargs.pop('headers'))
 
-        content, code, headers = self.request('post', url, header, post_data=data, files=files, **kwargs)
+        content, code, header = self.request('post', url, header, post_data=data, files=files, **kwargs)
 
         return content
 
-    def request(self, method, url, headers, post_data=None, files={}, **kwargs):
+    def request(self, method, url, header, post_data=None, files={}, **kwargs):
 
         # 如果是长连接模式
         if self._conn_pool:
@@ -258,33 +213,27 @@ class RequestsClient(HTTPClient):
         else:
             import requests
 
-        if self._verify_ssl_certs:
-            kwargs['verify'] = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data/ca-certificates.crt')
-        else:
-            kwargs['verify'] = False
-
-        if self._allow_redirect:
-            kwargs['allow_redirects'] = True
-        else:
-            kwargs['allow_redirects'] = False
-
         result = requests.request(method,
                                   url,
-                                  headers=headers,
+                                  headers=header,
                                   data=post_data,
                                   timeout=self._timeout,
                                   files=files,
+                                  verify=self._verify_ssl_certs,
+                                  allow_redirects=self._allow_redirect,
                                   **kwargs)
 
-        self.content, self.code, self.headers = result.content, result.status_code, result.headers
+        self.content, self.code, self.header = result.content, result.status_code, result.headers
 
-        return self.content, self.code, self.headers
+        return self.content, self.code, self.header
 
 class PycurlClient(HTTPClient):
     name = 'pycurl'
 
     def _curl_debug_log(self, debug_type, debug_msg):
+        '''
+        from tornado
+        '''
         debug_types = ('I', '<', '>', '<', '>')
         debug_msg = debug_msg.decode(self._charset)
         if debug_type == 0:
@@ -295,18 +244,18 @@ class PycurlClient(HTTPClient):
         elif debug_type == 4:
             log.debug('%s %r', debug_types[debug_type], debug_msg)
 
-    def parse_headers(self, data):
+    def parse_header(self, data):
         if '\r\n' not in data:
             return {}
-        raw_headers = data.split('\r\n', 1)[1]
-        headers = email.message_from_string(raw_headers)
-        return dict((k.title(), v) for k, v in dict(headers).items())
+        raw_header = data.split('\r\n', 1)[1]
+        header = email.message_from_string(raw_header)
+        return dict((k.title(), v) for k, v in dict(header).items())
 
-    def request(self, method, url, headers, post_data=None):
+    def request(self, method, url, header, post_data=None):
         import pycurl
 
         s = io.BytesIO()
-        rheaders = io.BytesIO()
+        rheader = io.BytesIO()
         curl = pycurl.Curl()
 
         # 详细log
@@ -323,12 +272,12 @@ class PycurlClient(HTTPClient):
 
         curl.setopt(pycurl.URL, url)
         curl.setopt(pycurl.WRITEFUNCTION, s.write)
-        curl.setopt(pycurl.HEADERFUNCTION, rheaders.write)
+        curl.setopt(pycurl.HEADERFUNCTION, rheader.write)
         curl.setopt(pycurl.NOSIGNAL, 1)
         curl.setopt(pycurl.CONNECTTIMEOUT, 30)
         curl.setopt(pycurl.TIMEOUT, self._timeout)
         curl.setopt(pycurl.HTTPHEADER, ['%s: %s' % (k, v)
-                    for k, v in headers.items()])
+                    for k, v in header.items()])
         if self._verify_ssl_certs:
             curl.setopt(pycurl.CAINFO, os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data/ca-certificates.crt'))
@@ -345,25 +294,27 @@ class PycurlClient(HTTPClient):
         http_start_tran =  curl.getinfo(pycurl.STARTTRANSFER_TIME)
         http_total_time = curl.getinfo(pycurl.TOTAL_TIME)
         http_size = curl.getinfo(pycurl.SIZE_DOWNLOAD)
-        log.info('func=pycurl_time|http_code=%d|http_size=%d|dns_time=%d|conn_time=%d|pre_tran=%d|start_tran=%d|total_time=%d'%(
+        log.info('server=HTTPClient|func=pycurl_time|http_code=%d|http_size=%d|dns_time=%d|conn_time=%d|pre_tran=%d|start_tran=%d|total_time=%d'%(
                 http_code,http_size,int(http_dns_time*1000000),int(http_conn_time*1000000),
                 int(http_pre_tran*1000000),int(http_start_tran*1000000),int(http_total_time*1000000)))
 
         rbody = s.getvalue()
         rcode = curl.getinfo(pycurl.RESPONSE_CODE)
 
-        self.content, self.code, self.headers = rbody, rcode, self.parse_headers(rheaders.getvalue().decode(self._charset))
+        self.content, self.code, self.header = rbody, rcode, self.parse_header(rheader.getvalue().decode(self._charset))
 
-        return self.content, self.code, self.headers
+        return self.content, self.code, self.header
 
 
 class UrllibClient(HTTPClient):
     name = 'urllib'
 
-    def request(self, method, url, headers, post_data=None, handlers=[]):
+    def request(self, method, url, header, post_data=None, handlers=[]):
         import ssl
 
-        req = urllib.request.Request(url, post_data.encode(self._charset), headers)
+        if isinstance(post_data, str):
+            post_data = post_data.encode(self._charset)
+        req = urllib.request.Request(url, post_data, header)
 
         if method not in ('get', 'post'):
             req.get_method = lambda: method.upper()
@@ -379,15 +330,15 @@ class UrllibClient(HTTPClient):
 
             rbody = response.read()
             rcode = response.code
-            headers = dict((k.title(),v) for k,v in dict(response.info()).items())
+            header = dict((k.title(),v) for k,v in dict(response.info()).items())
         except urllib.request.HTTPError as e:
             rbody = e.read()
             rcode = e.code
-            headers = dict((k.title(),v) for k,v in dict(e.info()).items())
+            header = dict((k.title(),v) for k,v in dict(e.info()).items())
 
-        self.content, self.code, self.headers = rbody, rcode, headers
+        self.content, self.code, self.header = rbody, rcode, header
 
-        return self.content, self.code, self.headers
+        return self.content, self.code, self.header
 
 # 为了兼容
 Urllib2Client = UrllibClient
@@ -427,14 +378,12 @@ def test_get():
 def test_post():
     for i in [PycurlClient,RequestsClient, Urllib3Client, Urllib2Client]:
         ret = i().post('http://httpbin.org/post', {'a':'b'})
-        import json
         ret = json.loads(ret)
         assert ret['form']['a'] == 'b'
 
 def test_post_json():
     for i in [PycurlClient,RequestsClient, Urllib3Client, Urllib2Client]:
         ret = i().post_json('http://httpbin.org/post', {'a':'b'})
-        import json
         ret = json.loads(ret)
         assert ret['json']['a'] == 'b'
 
@@ -456,11 +405,11 @@ def test_long_conn():
     for i in range(5):
         Urllib3Client(allow_redirect=True,conn_pool = True,verify_ssl_certs = True).get('https://httpbin.org/headers')
 
-def test_headers():
+def test_header():
     for client in [PycurlClient, RequestsClient, Urllib2Client, Urllib3Client]:
         c = client()
-        c.get('http://baidu.com',headers={'X-testtest': 'test'})
-        print(c.headers)
+        c.post('http://httpbin.org/post',header={'X-testtest': 'test'})
+        print(c.header)
 
 def test_binary():
     Urllib2Client().get('https://www.baidu.com/img/bd_logo1.png')
@@ -470,21 +419,21 @@ def test_post_file():
     RequestsClient().post_file('http://httpbin.org/post', {'key1':'value1'}, files={'file1': open('__init__.py', 'rb')})
 
 def test_urllib3():
-    Urllib3Client().post_xml('http://127.0.0.1:9020/a/b/c',{'a':'1'})
-    Urllib3Client(conn_pool=True).post_xml('http://127.0.0.1:9020/a/b/c',{'a':'1'})
+    Urllib3Client().post_xml('http://httpbin.org/post',{'a':'1'})
+    Urllib3Client(conn_pool=True).post_xml('http://httpbin.org/post',{'a':'1'})
 
 if __name__ == '__main__':
     import logger
     logger.install('stdout')
 
-    # test_get()
+    test_get()
     # test_post()
     # test_post_json()
-    test_post_xml()
+    # test_post_xml()
     # test_install()
     # test_long_conn()
-    # test_headers()
+    # test_header()
     # test_binary()
     # test_post_file()
-    # test_urllib3()
+    #  test_urllib3()
 

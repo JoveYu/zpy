@@ -1,6 +1,5 @@
-# coding: utf-8
+#!/usr/bin/env python
 
-import sys
 import logging
 import logging.config
 from logging import DEBUG, INFO, WARN, ERROR, FATAL, NOTSET
@@ -53,9 +52,6 @@ def fatal(msg, *args, **kwargs):
 critical = fatal
 
 def install(logdict, **options):
-    pyv = sys.version_info
-    if pyv[0] == 2 and pyv[1] < 7:
-        raise RuntimeError('python error, must python >= 2.7')
 
     conf = {
         'version': 1,
