@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import ssl
 import json
 import os
-import email
 import logging
 import types
 import urllib
@@ -11,6 +11,7 @@ import urllib.request
 import http
 import time
 import io
+import functools
 
 log = logging.getLogger()
 
@@ -18,6 +19,7 @@ client = None
 conn_pool = None
 
 def timeit(func):
+    @functools.wraps(func)
     def _(self, *args, **kwargs):
         starttm = time.time()
         code = 0
@@ -178,13 +180,13 @@ class Urllib3Client(HTTPClient):
         else:
             conn = urllib3.PoolManager(**pool_kwargs)
 
-        result = conn.request(method=method, url=url,
+        resp = conn.request(method=method, url=url,
                               body=post_data, headers=header,
                               timeout=self._timeout,
                               redirect=self._allow_redirect,
                               **kwargs)
 
-        self.content, self.code, self.header = result.data, result.status, result.headers
+        self.content, self.code, self.header = resp.data, resp.status, resp.headers
 
         return self.content, self.code, self.header
 
@@ -213,7 +215,7 @@ class RequestsClient(HTTPClient):
         else:
             import requests
 
-        result = requests.request(method,
+        resp = requests.request(method,
                                   url,
                                   headers=header,
                                   data=post_data,
@@ -223,7 +225,7 @@ class RequestsClient(HTTPClient):
                                   allow_redirects=self._allow_redirect,
                                   **kwargs)
 
-        self.content, self.code, self.header = result.content, result.status_code, result.headers
+        self.content, self.code, self.header = resp.content, resp.status_code, resp.headers
 
         return self.content, self.code, self.header
 
@@ -245,11 +247,14 @@ class PycurlClient(HTTPClient):
             log.debug('%s %r', debug_types[debug_type], debug_msg)
 
     def parse_header(self, data):
-        if '\r\n' not in data:
-            return {}
-        raw_header = data.split('\r\n', 1)[1]
-        header = email.message_from_string(raw_header)
-        return dict((k.title(), v) for k, v in dict(header).items())
+        header = {}
+        for line in data.decode(self._charset).split('\r\n')[1:]:
+            line = line.strip()
+            if line:
+                k,v  = line.split(':', 1)
+                header[k.strip().title()] = v.strip()
+        return header
+
 
     def request(self, method, url, header, post_data=None):
         import pycurl
@@ -301,16 +306,13 @@ class PycurlClient(HTTPClient):
         rbody = s.getvalue()
         rcode = curl.getinfo(pycurl.RESPONSE_CODE)
 
-        self.content, self.code, self.header = rbody, rcode, self.parse_header(rheader.getvalue().decode(self._charset))
-
+        self.content, self.code, self.header = rbody, rcode, self.parse_header(rheader.getvalue())
         return self.content, self.code, self.header
-
 
 class UrllibClient(HTTPClient):
     name = 'urllib'
 
     def request(self, method, url, header, post_data=None, handlers=[]):
-        import ssl
 
         if isinstance(post_data, str):
             post_data = post_data.encode(self._charset)
@@ -427,13 +429,13 @@ if __name__ == '__main__':
     logger.install('stdout')
 
     test_get()
-    # test_post()
-    # test_post_json()
-    # test_post_xml()
-    # test_install()
-    # test_long_conn()
-    # test_header()
-    # test_binary()
-    # test_post_file()
+    #  test_post()
+    #  test_post_json()
+    #  test_post_xml()
+    #  test_install()
+    #  test_long_conn()
+    #  test_header()
+    #  test_binary()
+    #  test_post_file()
     #  test_urllib3()
 
