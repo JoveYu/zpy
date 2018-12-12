@@ -108,6 +108,9 @@ def install(logdict, **options):
                     conf['handlers']['file-'+name].update(logcf)
 
                 filehandlers.append('file-'+name)
+            else:
+                conf['handlers']['console'].update(logcf)
+
         if filehandlers:
             conf['loggers'][logname] = {'handlers': filehandlers}
 
