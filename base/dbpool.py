@@ -505,7 +505,7 @@ class SQLiteConnection (DBConnection):
         self.trans = 0
         if engine == 'sqlite':
             import sqlite3
-            self.conn = sqlite3.connect(self.param['db'], detect_types=sqlite3.PARSE_DECLTYPES, isolation_level=None)
+            self.conn = sqlite3.connect(self.param['db'], detect_types=sqlite3.PARSE_DECLTYPES, isolation_level=None, check_same_thread=False)
         else:
             raise ValueError('engine error:' + engine)
 
