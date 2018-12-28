@@ -43,9 +43,6 @@ class Render:
 
     def display(self, tplname, **args):
         try:
-            #if not tplname.startswith(self.loc):
-            #    tplname = os.path.join(self.loc, tplname)
-
             if self.cache is False or tplname not in self.cache:
                 mylookup = TemplateLookup(directories=[self.loc],
                                           filesystem_checks=False,
@@ -53,9 +50,6 @@ class Render:
                                           output_encoding=self.charset,
                                           encoding_errors='replace',
                                           default_filters=['decode.utf8'])
-                #c = Template(filename=tplname, lookup=mylookup,
-                #             output_encoding=self.charset,
-                #             encoding_errors='ignore')
                 c = mylookup.get_template(tplname)
 
                 if self.cache is not False:
@@ -70,24 +64,6 @@ class Render:
         except:
             log.error('\n=== template error ===' + exceptions.text_error_template().render() + '\n=== template error end ===')
             return 'template error!'
-
-    #def display2(self, tplname, **args):
-    #    if self.cache is False or tplname not in self.cache:
-    #        fpath = os.path.join(self.loc, tplname)
-    #        f = open(fpath, 'r')
-    #        s = f.read()
-    #        f.close()
-    #
-    #        c = Template(s, output_encoding=self.charset,
-    #                     encoding_errors='ignore')
-    #        if self.cache is not False:
-    #            self.cache[tplname] = c
-    #    if self.cache:
-    #        c = self.cache[tplname]
-    #
-    #    return c.render(**args)
-    #
-
 
 def install(loc="templates", tmpdir="/tmp", cache=False, charset='utf-8'):
     global render
