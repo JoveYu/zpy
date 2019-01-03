@@ -34,7 +34,7 @@ def timeit(func):
         finally:
             endtm = time.time()
             dbcf = conn.param
-            log.info('server=%s|id=%d|name=%s|user=%s|addr=%s:%d|db=%s|idle=%d|busy=%d|max=%d|trans=%d|time=%d|ret=%s|num=%d|sql=%s|err=%s',
+            log.info('ep=%s|id=%d|name=%s|user=%s|addr=%s:%d|db=%s|idle=%d|busy=%d|max=%d|trans=%d|time=%d|ret=%s|num=%d|sql=%s|err=%s',
                      conn.type, conn.conn_id%10000,
                      conn.name, dbcf.get('user',''),
                      dbcf.get('host',''), dbcf.get('port',0),
@@ -520,8 +520,8 @@ class SQLiteConnection (DBConnection):
         self.conn = None
 
     def escape(self, s):
-        s = s.replace("'", "\'")
-        s = s.replace('"', '\"')
+        s = s.replace("'", "''") \
+            .replace('"', '""')
         return s
 
     def last_insert_id(self):
