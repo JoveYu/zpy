@@ -44,7 +44,7 @@ def timeit(func):
                      conn.pool.max_conn, conn.trans,
                      int((endtm-starttm)*1000000),
                      str(ret), num,
-                     repr(args[0]), err)
+                     args[0], err)
     return _
 
 
@@ -520,9 +520,8 @@ class SQLiteConnection (DBConnection):
         self.conn = None
 
     def escape(self, s):
-        s = s.replace("'", "''") \
-            .replace('"', '""')
-        return s
+        return s.replace("'", "''") \
+            .replace('"', '\\"')
 
     def last_insert_id(self):
         ret = self.query('select last_insert_rowid()', isdict=False)
@@ -1298,15 +1297,39 @@ def test_trans():
         conn.get('select connection_id()')
 
 
-
-
+def test_sqlite_escape():
+    database = {
+        'test': {
+            'engine': 'sqlite',
+            'db':'test.db',
+        }
+    }
+    install(database)
+    with get_connection('test') as conn:
+        conn.execute('drop table haha')
+        conn.execute('create table if not exists haha (id int(4) not null primary key, name varchar(128) not null)')
+        conn.insert('haha', {
+            'id': 1,
+            'name': "'",
+        })
+        conn.select('haha', {
+            'name': "'",
+        })
+        conn.insert('haha', {
+            'id': 2,
+            'name': '"',
+        })
+        conn.select('haha', {
+            'name': '"',
+        })
 
 if __name__ == '__main__':
     import logger
     logger.install('stdout')
     # test()
     # test1()
-    test_with()
+    #  test_with()
+    test_sqlite_escape()
     print('complete!')
 
 
