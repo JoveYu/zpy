@@ -520,8 +520,10 @@ class SQLiteConnection (DBConnection):
         self.conn = None
 
     def escape(self, s):
+        # simple escape TODO
         return s.replace("'", "''") \
-            .replace('"', '\\"')
+            .replace('"', '\"')
+            .replace(';', '')
 
     def last_insert_id(self):
         ret = self.query('select last_insert_rowid()', isdict=False)
