@@ -34,7 +34,10 @@ def timeit(func):
                 if self._charset:
                     self.content = self.content.decode(self._charset)
                     retval = retval.decode(self._charset)
-                content = self.content[:2000]
+                if self._log_body:
+                    content = self.content[:2000]
+                else:
+                    content = '[text data %d]' % len(self.content)
             return retval
         except Exception as e:
             err = str(e)
@@ -84,12 +87,14 @@ class HTTPClient:
     content = ''
     header = {}
 
-    def __init__(self, verify_ssl_certs=True, timeout=10, conn_pool=False, allow_redirect=False, charset='utf-8'):
+    def __init__(self, verify_ssl_certs=True, timeout=10, conn_pool=False, allow_redirect=False,
+                 charset='utf-8', log_body=True):
         self._verify_ssl_certs = verify_ssl_certs
         self._timeout = timeout
         self._conn_pool = conn_pool
         self._allow_redirect = allow_redirect
         self._charset = charset
+        self._log_body = log_body
 
     @timeit
     def do(self, method, url, header={}, post_data=None):
