@@ -32,8 +32,8 @@ def timeit(func):
                 content = '[binary data %d]' % len(self.content)
             else:
                 if self._charset:
-                    self.content = self.content.decode(self._charset)
-                    retval = retval.decode(self._charset)
+                    self.content = self.content.decode(self._charset,'ignore')
+                    retval = retval.decode(self._charset,'ignore')
                 if self._log_body:
                     content = self.content[:2000]
                 else:
