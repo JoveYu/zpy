@@ -961,7 +961,7 @@ def test3():
                      'db':'test',
                      'host':'127.0.0.1',
                      'port':3306,
-                     'user':'zhaowei_r1',
+                     'user':'jove',
                      'passwd':'123456',
                      'charset':'utf8',
                      'conn':20},
@@ -969,7 +969,7 @@ def test3():
                      'db':'test',
                      'host':'127.0.0.1',
                      'port':3306,
-                     'user':'zhaowei_r2',
+                     'user':'jove',
                      'passwd':'123456',
                      'charset':'utf8',
                      'conn':20},
@@ -989,7 +989,7 @@ def test3():
         for i in range(0, x):
             c = acquire('test')
             time.sleep(1)
-            c.insert('ztest', {'name':'zhaowei%d'%(i)})
+            c.insert('ztest', {'name':'jove%d'%(i)})
             print(c.query('select count(*) from ztest'))
             print(c.get('select count(*) from ztest'))
             conns.append(c)
@@ -1011,10 +1011,10 @@ def test3():
 def test4(tcount):
     DATABASE = {'test': # connection name, used for getting connection from pool
                 {'engine':'mysql',   # db type, eg: mysql, sqlite
-                 'db':'qf_core',        # db name
-                 'host':'172.100.101.106', # db host
+                 'db':'test',        # db name
+                 'host':'127.0.0.1', # db host
                  'port':3306,        # db port
-                 'user':'qf',      # db user
+                 'user':'jove',      # db user
                  'passwd':'123456',  # db password
                  'charset':'utf8',   # db charset
                  'conn':10}          # db connections in pool
@@ -1063,10 +1063,10 @@ def test4(tcount):
 def test5():
     DATABASE = {'test': # connection name, used for getting connection from pool
                 {'engine':'mysql',   # db type, eg: mysql, sqlite
-                 'db':'qf_core',        # db name
-                 'host':'172.100.101.106', # db host
+                 'db':'test',        # db name
+                 'host':'127.0.0.1', # db host
                  'port':3306,        # db port
-                 'user':'qf',      # db user
+                 'user':'jove',      # db user
                  'passwd':'123456',  # db password
                  'charset':'utf8',   # db charset
                  'conn':20}          # db connections in pool
@@ -1101,9 +1101,9 @@ def test_with():
     DATABASE = {'test': # connection name, used for getting connection from pool
                 {'engine':'pymysql',   # db type, eg: mysql, sqlite
                  'db':'qf_core',        # db name
-                 'host':'172.100.101.106', # db host
+                 'host':'127.0.0.1', # db host
                  'port':3306,        # db port
-                 'user':'qf',      # db user
+                 'user':'jove',      # db user
                  'passwd':'123456',  # db password
                  'charset':'utf8',   # db charset
                  'conn':10}          # db connections in pool
@@ -1167,9 +1167,9 @@ def test_new_rw():
                 'master':
                     {'engine':'pymysql',
                      'db':'test',
-                     'host':'172.100.101.156',
+                     'host':'127.0.0.1',
                      'port':3306,
-                     'user':'qf',
+                     'user':'jove',
                      'passwd':'123456',
                      'charset':'utf8',
                      'conn':10}
@@ -1177,18 +1177,18 @@ def test_new_rw():
                  'slave':[
                     {'engine':'pymysql',
                      'db':'test',
-                     'host':'172.100.101.156',
+                     'host':'127.0.0.1',
                      'port':3306,
-                     'user':'qf',
+                     'user':'jove',
                      'passwd':'123456',
                      'charset':'utf8',
                      'conn':10
                     },
                     {'engine':'pymysql',
                      'db':'test',
-                     'host':'172.100.101.156',
+                     'host':'127.0.0.1',
                      'port':3306,
-                     'user':'qf',
+                     'user':'jove',
                      'passwd':'123456',
                      'charset':'utf8',
                      'conn':10
@@ -1253,10 +1253,10 @@ def test_db_install():
     logger.install('stdout')
     DATABASE = {'test': # connection name, used for getting connection from pool
                 {'engine':'pymysql',   # db type, eg: mysql, sqlite
-                 'db':'qiantai',        # db name
-                 'host':'172.100.101.156', # db host
+                 'db':'test',        # db name
+                 'host':'127.0.0.1', # db host
                  'port':3306,        # db port
-                 'user':'qf',      # db user
+                 'user':'jove',      # db user
                  'passwd':'123456',  # db password
                  'charset':'utf8',   # db charset
                  'conn':10}          # db connections in pool
@@ -1276,10 +1276,10 @@ def test_trans():
     logger.install('stdout')
     DATABASE = {'test': # connection name, used for getting connection from pool
                 {'engine':'pymysql',   # db type, eg: mysql, sqlite
-                 'db':'qiantai',        # db name
-                 'host':'172.100.101.156', # db host
+                 'db':'test',        # db name
+                 'host':'127.0.0.1', # db host
                  'port':3306,        # db port
-                 'user':'qf',      # db user
+                 'user':'jove',      # db user
                  'passwd':'123456',  # db password
                  'charset':'utf8',   # db charset
                  'conn':10}          # db connections in pool
