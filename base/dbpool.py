@@ -1,3 +1,9 @@
+
+# ref:
+#   PEP 248 https://www.python.org/dev/peps/pep-0248/
+#   PEP 249 https://www.python.org/dev/peps/pep-0249/
+#   wiki    https://wiki.python.org/moin/DatabaseProgramming
+
 import time
 import datetime
 import types
