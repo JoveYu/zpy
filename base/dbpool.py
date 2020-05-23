@@ -34,7 +34,7 @@ def timeit(func):
         finally:
             endtm = time.time()
             dbcf = conn.param
-            log.info('server=%s|name=%s|user=%s|addr=%s:%d|db=%s|idle=%d|busy=%d|max=%d|time=%d|ret=%s|sql=%s|err=%s',
+            log.info('server=%s|name=%s|addr=%s@%s:%d/%s|idle=%d|busy=%d|max=%d|time=%d|ret=%s|sql=%s|err=%s',
                      conn.type, conn.name,
                      dbcf.get('user', ''), dbcf.get('host', ''),
                      dbcf.get('port', 0), dbcf.get('db', ''),
@@ -178,32 +178,38 @@ class DBConnection:
     @timeit
     async def execute(self, sql, param=None):
         cur = await self.conn.cursor()
-        if param:
-            ret = await cur.execute(sql, param)
-        else:
-            ret = await cur.execute(sql)
-        await self._close_cursor(cur)
-        return ret
+        try:
+            if param:
+                ret = await cur.execute(sql, param)
+            else:
+                ret = await cur.execute(sql)
+            return ret
+        finally:
+            await self._close_cursor(cur)
 
     @timeit
     async def executemany(self, sql, param):
         cur = await self.conn.cursor()
-        if param:
-            ret = await cur.executemany(sql, param)
-        else:
-            ret = await cur.executemany(sql)
-        await self._close_cursor(cur)
-        return ret
+        try:
+            if param:
+                ret = await cur.executemany(sql, param)
+            else:
+                ret = await cur.executemany(sql)
+            return ret
+        finally:
+            await self._close_cursor(cur)
 
     @timeit
     async def query(self, sql, param=None, isdict=True, head=False):
         cur = await self.conn.cursor()
-        if param:
-            await cur.execute(sql, param)
-        else:
-            await cur.execute(sql)
-        res = await cur.fetchall()
-        await self._close_cursor(cur)
+        try:
+            if param:
+                await cur.execute(sql, param)
+            else:
+                await cur.execute(sql)
+            res = await cur.fetchall()
+        finally:
+            await self._close_cursor(cur)
         if res and isdict:
             ret = []
             xkeys = [i[0] for i in cur.description]
@@ -219,12 +225,14 @@ class DBConnection:
     @timeit
     async def get(self, sql, param=None, isdict=True):
         cur = await self.conn.cursor()
-        if param:
-            await cur.execute(sql, param)
-        else:
-            await cur.execute(sql)
-        res = await cur.fetchone()
-        await self._close_cursor(cur)
+        try:
+            if param:
+                await cur.execute(sql, param)
+            else:
+                await cur.execute(sql)
+            res = await cur.fetchone()
+        finally:
+            await self._close_cursor(cur)
         if res and isdict:
             xkeys = [i[0] for i in cur.description]
             return dict(zip(xkeys, res))
@@ -512,7 +520,7 @@ class DBPool (DBPoolBase):
 
         self.dbcf = dbcf
 
-        self.max_conn = dbcf.get('conn',20)
+        self.max_conn = dbcf.get('conn',50)
         self.min_conn = 1
 
         self.connection_class = {}
@@ -535,7 +543,7 @@ class DBPool (DBPoolBase):
             newconns.append(myconn)
         self.dbconn_idle += newconns
 
-    async def clear_timeout(self):
+    async def clear_idle(self):
         now = time.time()
         dels = []
         allconn = len(self.dbconn_idle)
@@ -553,13 +561,13 @@ class DBPool (DBPoolBase):
                 self.dbconn_idle.remove(c)
 
     @synchronize
-    async def acquire(self, timeout=10):
+    async def acquire(self, timeout=5):
         start = time.time()
         while len(self.dbconn_idle) == 0:
             if len(self.dbconn_idle) + len(self.dbconn_using) < self.max_conn:
                 await self.open()
                 continue
-            await self.cond.wait(timeout)
+            await asyncio.wait_for(self.cond.wait(), timeout)
             if int(time.time() - start) > timeout:
                 log.error('func=acquire|error=no idle connections')
                 raise RuntimeError('no idle connections')
@@ -570,7 +578,7 @@ class DBPool (DBPoolBase):
 
         if random.randint(0, 100) > 80:
             try:
-                await self.clear_timeout()
+                await self.clear_idle()
             except:
                 log.error(traceback.format_exc())
 
@@ -619,18 +627,18 @@ def install(cf):
     return dbpool
 
 
-async def acquire(name, timeout=10):
+async def acquire(name, timeout=5):
     global dbpool
     pool = dbpool[name]
     return await pool.acquire(timeout)
 
 
-def release(conn):
+async def release(conn):
     if not conn:
         return
     global dbpool
     pool = dbpool[conn.name]
-    return pool.release(conn)
+    return await pool.release(conn)
 
 
 @asynccontextmanager
@@ -643,11 +651,12 @@ async def get_connection(name):
         if conn:
             await release(conn)
 
-
 def with_database(name):
     def f(func):
         @functools.wraps(func)
         async def _(self, *args, **kwargs):
+            if getattr(self, 'db', None) is not None:
+                raise RuntimeError('acquire database duplicate')
             if isinstance(name, list):
                 self.db = {}
                 for i in name:
@@ -655,7 +664,7 @@ def with_database(name):
                 try:
                     return await func(self, *args, **kwargs)
                 finally:
-                    for i in self.db.values:
+                    for _,i in self.db.items():
                         await release(i)
                     self.db = None
             else:
@@ -710,8 +719,16 @@ async def test_with():
         pass
 
     @with_database('mysql')
-    async def f(self):
+    async def f1(self):
         await self.db.query('show tables')
+    
+    await f1(Self())
+
+    @with_database(['mysql', 'pg'])
+    async def f2(self):
+        await self.db['mysql'].query('show tables')
+
+    await f2(Self())
 
 async def test_pg_conn():
     install(test_dbcf)
@@ -803,7 +820,7 @@ async def test_mysql_conn():
 
         await db.update('test', {
             'name': '新名字'
-        }, {
+        }, where = {
             'id': 2
         })
         ret = await db.select('test', {
@@ -827,15 +844,34 @@ async def test_mysql_reconnect():
             log.debug(ret)
             await asyncio.sleep(1)
 
+async def test_max_conn():
+    install(test_dbcf)
+
+    import random
+    async def task(i):
+        while 1:
+            try:
+                async with get_connection('mysql') as db:
+                    await db.query('select sleep(%f)' % (random.randint(0,1000)/1000))
+                await asyncio.sleep(random.randint(0,2000)/1000)
+            except:
+                log.error(traceback.format_exc())
+
+    loop = asyncio.get_event_loop()
+    for i in range(30):
+        loop.create_task(task(i))
+    await asyncio.sleep(60)
+
 if __name__ == '__main__':
     import logger
     logger.install('stdout')
     loop = asyncio.get_event_loop()
     # loop.run_until_complete(test_with())
-    # loop.run_until_complete(test_mysql_conn())
+    loop.run_until_complete(test_mysql_conn())
     # loop.run_until_complete(test_sqlite_conn())
-    loop.run_until_complete(test_pg_conn())
+    # loop.run_until_complete(test_pg_conn())
     # loop.run_until_complete(test_mysql_reconnect())
+    # loop.run_until_complete(test_max_conn())
 
 
 
