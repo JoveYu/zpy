@@ -405,7 +405,7 @@ class AIOMySQLConnection(DBConnection):
                                     charset=self.param['charset'],
                                     connect_timeout=self.param.get(
                                         'timeout', 10),
-                                    sql_mode="ANSI_QUOTES", # allow " quote
+                                    sql_mode="ANSI_QUOTES", # allow " replace `
                                     autocommit=True,
                                     )
 
@@ -471,7 +471,7 @@ class AIOSQLiteConnection (DBConnection):
         return self.execute('begin')
 
 class AIOPGConnection(DBConnection):
-    type = 'pg'
+    type = 'postgresql'
 
     async def connect(self):
         import aiopg
@@ -697,7 +697,7 @@ test_dbcf = {
         'charset': 'utf8',
     },
     'pg':{
-        'engine': 'pg',
+        'engine': 'postgresql',
         'host': '127.0.0.1',
         'port': 5432,
         'user': 'postgres',
@@ -818,8 +818,9 @@ async def test_mysql_conn():
         log.debug(ret)
 
         await db.update('test', {
-            'name': '新名字'
-        }, where = {
+            'name': '新名字',
+            'time': datetime.datetime.now(),
+        }, {
             'id': 2
         })
         ret = await db.select('test', {
@@ -832,6 +833,12 @@ async def test_mysql_conn():
         })
         ret = await db.select('test')
         log.debug(ret)
+
+        ret = await db.select_one('test', fields='count(1)', isdict=False)
+        log.debug(ret)
+
+        async with db.transaction():
+            pass
 
 
 async def test_mysql_reconnect():
