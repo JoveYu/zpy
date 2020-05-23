@@ -490,13 +490,11 @@ class AIOPGConnection(DBConnection):
         return s.replace("'", "''")
 
     async def last_insert_id(self):
-        ret = await self.get('select last_insert_id()', isdict=False)
+        ret = await self.get('select lastval()', isdict=False)
         return ret[0]
 
     async def begin(self):
         return await self.execute('start transaction')
-
-
 
 
 
@@ -737,16 +735,17 @@ async def test_pg_conn():
         await db.execute('drop table if exists test')
         await db.execute('''
         create table if not exists test(
-            id int,
+            id SERIAL,
             name varchar(30),
             time timestamp
         )
         ''')
         await db.insert('test', {
-            'id': 1,
             'name': '杰克\'马"',
             'time': datetime.datetime.now(),
         })
+        ret = await db.last_insert_id()
+        log.debug(ret)
         ret = await db.select('test', {
             'id': 1
         })
@@ -867,9 +866,9 @@ if __name__ == '__main__':
     logger.install('stdout')
     loop = asyncio.get_event_loop()
     # loop.run_until_complete(test_with())
-    loop.run_until_complete(test_mysql_conn())
+    # loop.run_until_complete(test_mysql_conn())
     # loop.run_until_complete(test_sqlite_conn())
-    # loop.run_until_complete(test_pg_conn())
+    loop.run_until_complete(test_pg_conn())
     # loop.run_until_complete(test_mysql_reconnect())
     # loop.run_until_complete(test_max_conn())
 
