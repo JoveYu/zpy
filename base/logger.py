@@ -15,11 +15,16 @@ LEVEL_COLOR = {
 log = None
 
 class ScreenHandler(logging.StreamHandler):
+    def __init__(self, stream=None):
+        super(ScreenHandler, self).__init__(stream)
+        self.isatty = self.stream.isatty()
+
     def emit(self, record):
         try:
             msg = self.format(record)
-            fs = LEVEL_COLOR[record.levelno] + "%s\n" + '\33[0m'
-            self.stream.write(fs % msg)
+            if self.isatty:
+                msg = "%s%s%s" % (LEVEL_COLOR[record.levelno], msg, '\33[0m')
+            self.stream.write(msg + self.terminator)
             self.flush()
         except (KeyboardInterrupt, SystemExit):
             raise

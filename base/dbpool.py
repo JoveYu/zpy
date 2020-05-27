@@ -518,7 +518,6 @@ def synchronize(func):
 
 class DBPool (DBPoolBase):
     def __init__(self, dbcf):
-        # one item: [conn, last_get_time, stauts]
         self.dbconn_idle = []
         self.dbconn_using = []
 
@@ -719,20 +718,19 @@ test_dbcf = {
 async def test_with():
     install(test_dbcf)
 
-    class Self:
-        pass
+    class Class1:
+        @with_database('mysql')
+        async def f1(self):
+            await self.db.query('show tables')
 
-    @with_database('mysql')
-    async def f1(self):
-        await self.db.query('show tables')
-    
-    await f1(Self())
+        @with_database(['mysql'])
+        async def f2(self):
+            # await self.f1()   # raise
+            await self.db['mysql'].query('show tables')
 
-    @with_database(['mysql', 'pg'])
-    async def f2(self):
-        await self.db['mysql'].query('show tables')
-
-    await f2(Self())
+    c = Class1()
+    await c.f1()
+    await c.f2()
 
 async def test_pg_conn():
     install(test_dbcf)
@@ -881,9 +879,9 @@ if __name__ == '__main__':
     # loop.run_until_complete(test_with())
     # loop.run_until_complete(test_mysql_conn())
     # loop.run_until_complete(test_sqlite_conn())
-    loop.run_until_complete(test_pg_conn())
+    # loop.run_until_complete(test_pg_conn())
     # loop.run_until_complete(test_mysql_reconnect())
-    # loop.run_until_complete(test_max_conn())
+    loop.run_until_complete(test_max_conn())
 
 
 
