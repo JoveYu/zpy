@@ -12,6 +12,15 @@ LEVEL_COLOR = {
     NOTSET: ''
 }
 
+LEVEL_NAME = {
+    DEBUG: 'D',
+    INFO: 'I',
+    WARN: 'W',
+    ERROR: 'E',
+    FATAL: 'F',
+    NOTSET: 'N',
+}
+
 log = None
 
 class ScreenHandler(logging.StreamHandler):
@@ -32,6 +41,7 @@ class ScreenHandler(logging.StreamHandler):
             self.handleError(record)
 
 logging.ScreenHandler = ScreenHandler
+logging._levelToName = LEVEL_NAME
 
 def debug(msg, *args, **kwargs):
     global log
@@ -61,7 +71,7 @@ def install(logdict, **options):
         'version': 1,
         'formatters': {
             'myformat': {
-                'format': '%(asctime)s %(process)d,%(threadName)s %(filename)s:%(lineno)d [%(levelname)s] %(message)s',
+                'format': '%(asctime)s %(levelname)s %(process)d,%(threadName)s %(filename)s:%(lineno)d %(message)s',
             },
         },
         'handlers': {
