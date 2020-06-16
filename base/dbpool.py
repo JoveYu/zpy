@@ -178,6 +178,9 @@ class DBConnection:
     def escape(self, s):
         return s
 
+    def quote(self, s):
+        return s
+
     async def cursor(self):
         return await self.conn.cursor()
 
@@ -258,7 +261,7 @@ class DBConnection:
             return str(v)
 
     def exp2sql(self, key, op, value):
-        item = '("%s" %s ' % (key, op)
+        item = '(%s %s ' % (self.quote(key), op)
         if op == 'in':
             item += '(%s))' % ','.join([self.value2sql(x) for x in value])
         elif op == 'not in':
@@ -276,15 +279,15 @@ class DBConnection:
             if isinstance(v, tuple):
                 x.append(self.exp2sql(k, v[0], v[1]))
             else:
-                x.append('"%s"=%s' % (k, self.value2sql(v)))
+                x.append('%s=%s' % (self.quote(k), self.value2sql(v)))
         return sp.join(x)
 
     def dict2insert(self, d):
         keys = []
         vals = []
         for k in sorted(d.keys()):
-            vals.append('%s' % self.value2sql(d[k]))
-            keys.append('"%s"' % k)
+            vals.append(self.value2sql(d[k]))
+            keys.append(self.quote(k))
         return ','.join(keys), ','.join(vals)
 
     async def insert(self, table, values, other=None):
@@ -305,23 +308,23 @@ class DBConnection:
 
     async def select(self, table, where=None, fields='*', other=None, isdict=True):
         sql = self.select_sql(table, where, fields, other)
-        return await self.query(sql, None, isdict=isdict)
+        return await self.query(sql, isdict=isdict)
 
     async def select_one(self, table, where=None, fields='*', other='limit 1', isdict=True):
         sql = self.select_sql(table, where, fields, other)
-        return await self.get(sql, None, isdict=isdict)
+        return await self.get(sql, isdict=isdict)
 
     async def select_join(self, table1, table2, join_type='inner', on=None, where=None, fields='*', other=None, isdict=True):
         sql = self.select_join_sql(table1, table2, join_type, on, where, fields, other)
-        return await self.query(sql, None, isdict=isdict)
+        return await self.query(sql, isdict=isdict)
 
     async def select_join_one(self, table1, table2, join_type='inner', on=None, where=None, fields='*', other='limit 1', isdict=True):
         sql = self.select_join_sql(table1, table2, join_type, on, where, fields, other)
-        return await self.get(sql, None, isdict=isdict)
+        return await self.get(sql, isdict=isdict)
 
     def insert_sql(self, table, values, other=None):
         keys, vals = self.dict2insert(values)
-        sql = 'insert into "%s"(%s) values (%s)' % (table, keys, vals)
+        sql = 'insert into %s(%s) values (%s)' % (self.quote(table), keys, vals)
         if other:
             sql += ' %s' % other
         return sql
@@ -332,13 +335,13 @@ class DBConnection:
             keys, vals = self.dict2insert(values)
             vals_list.append('(%s)' % vals)
 
-        sql = 'insert into "%s"(%s) values %s' % (table, keys, ','.join(vals_list))
+        sql = 'insert into %s(%s) values %s' % (self.quote(table), keys, ','.join(vals_list))
         if other:
             sql += ' %s' % other
         return sql
 
     def update_sql(self, table, values, where=None, other=None):
-        sql = 'update "%s" set %s' % (table, self.dict2sql(values))
+        sql = 'update %s set %s' % (self.quote(table), self.dict2sql(values))
         if where:
             sql += ' where %s' % self.dict2sql(where,' and ')
         if other:
@@ -346,7 +349,7 @@ class DBConnection:
         return sql
 
     def delete_sql(self, table, where, other=None):
-        sql = 'delete from "%s"' % table
+        sql = 'delete from %s' % self.quote(table)
         if where:
             sql += ' where %s' % self.dict2sql(where, ' and ')
         if other:
@@ -356,7 +359,7 @@ class DBConnection:
     def select_sql(self, table, where=None, fields='*', other=None):
         if isinstance(fields, (list, tuple)):
             fields = ','.join(fields)
-        sql = 'select %s from "%s"' % (fields, table)
+        sql = 'select %s from %s' % (fields, self.quote(table))
         if where:
             sql += ' where %s' % self.dict2sql(where, ' and ')
         if other:
@@ -366,7 +369,7 @@ class DBConnection:
     def select_join_sql(self, table1, table2, join_type='inner', on=None, where=None, fields='*', other=None):
         if isinstance(fields, (list, tuple)):
             fields = ','.join(fields)
-        sql = 'select %s from "%s" %s join "%s"' % (fields, table1, join_type, table2)
+        sql = 'select %s from %s %s join %s' % (fields, self.quote(table1), join_type, self.quote(table2))
         if on:
             sql += ' on %s' % on
         if where:
@@ -411,7 +414,6 @@ class AIOMySQLConnection(DBConnection):
                                     charset=self.param['charset'],
                                     connect_timeout=self.param.get(
                                         'timeout', 10),
-                                    sql_mode="ANSI_QUOTES", # allow " replace `
                                     autocommit=True,
                                     )
 
@@ -427,6 +429,9 @@ class AIOMySQLConnection(DBConnection):
 
     def escape(self, s):
         return self.conn.escape_string(s)
+
+    def quote(self, s):
+        return '`%s`' % s
 
     async def last_insert_id(self):
         ret = await self.get('select last_insert_id()', isdict=False)
@@ -469,6 +474,9 @@ class AIOSQLiteConnection (DBConnection):
         # simple escape TODO
         return s.replace("'", "''")
 
+    def quote(self, s):
+        return '"%s"' % s
+
     def last_insert_id(self):
         ret = self.get('select last_insert_rowid()', isdict=False)
         return ret[0]
@@ -494,6 +502,9 @@ class AIOPGConnection(DBConnection):
     def escape(self, s):
         # simple escape TODO
         return s.replace("'", "''")
+
+    def quote(self, s):
+        return '"%s"' % s
 
     async def last_insert_id(self):
         ret = await self.get('select lastval()', isdict=False)
@@ -877,11 +888,11 @@ if __name__ == '__main__':
     logger.install('stdout')
     loop = asyncio.get_event_loop()
     # loop.run_until_complete(test_with())
-    # loop.run_until_complete(test_mysql_conn())
+    loop.run_until_complete(test_mysql_conn())
     # loop.run_until_complete(test_sqlite_conn())
     # loop.run_until_complete(test_pg_conn())
     # loop.run_until_complete(test_mysql_reconnect())
-    loop.run_until_complete(test_max_conn())
+    # loop.run_until_complete(test_max_conn())
 
 
 
