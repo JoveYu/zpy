@@ -255,6 +255,10 @@ class DBConnection:
             return "'%s'" % str(v)
         elif isinstance(v, DBFunc):
             return v.value
+        elif v is True:
+            return 'TRUE'
+        elif v is False:
+            return 'FALSE'
         elif v is None:
             return 'NULL'
         else:
